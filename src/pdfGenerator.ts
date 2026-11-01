@@ -255,11 +255,25 @@ export function generatePdfDocument(data: PdfData): jsPDF {
 
   header();
 
-  const validRows = rows.filter((r) => (r._q ?? 0) > 0);
+  const validRows = rows.filter((r) => (r._q ?? 0) > 0 || (r._gl ?? 0) > 0);
   validRows.forEach((r) => {
-    const place = (r.origin ? r.origin + ' - ' : '') + r.place;
+    // A global row has a place only (no origin -> destination travel)
+    const place = r.t === 'g' ? r.place : (r.origin ? r.origin + ' - ' : '') + r.place;
     const v =
-      r.t === 'n'
+      r.t === 'g'
+        ? [
+            fdate(r.date),
+            place,
+            '-',
+            '-',
+            '-',
+            fmt(r._gl ?? 0),
+            '-',
+            '-',
+            '-',
+            '-',
+          ].concat(KR ? ['-'] : [])
+        : r.t === 'n'
         ? [
             fdate(r.date),
             place,
@@ -319,25 +333,41 @@ export function generatePdfDocument(data: PdfData): jsPDF {
     y += h;
   }
 
-  srow(
-    [
-      [0, 7, L.s_trav, 'right'],
-      [7, 1, fmt(R._k ?? 0)],
-      [8, 1, fmt(R._t ?? 0)],
-      [9, NC - 9, ''],
-    ],
-    'trav'
-  );
+  // An invoice made only of global rows has no hours/travel to summarise
+  const onlyGlobal = (R._gl ?? 0) > 0 && (R._q ?? 0) === 0;
 
-  srow(
-    [
-      [0, 4, L.s_hours, 'right'],
-      [4, 1, fmt(R._q ?? 0)],
-      [5, 1, fmt(R._a ?? 0)],
-      [6, NC - 6, ''],
-    ],
-    'hours'
-  );
+  if (!onlyGlobal) {
+    srow(
+      [
+        [0, 7, L.s_trav, 'right'],
+        [7, 1, fmt(R._k ?? 0)],
+        [8, 1, fmt(R._t ?? 0)],
+        [9, NC - 9, ''],
+      ],
+      'trav'
+    );
+
+    srow(
+      [
+        [0, 4, L.s_hours, 'right'],
+        [4, 1, fmt(R._q ?? 0)],
+        [5, 1, fmt(R._a ?? 0)],
+        [6, NC - 6, ''],
+      ],
+      'hours'
+    );
+  }
+
+  if ((R._gl ?? 0) > 0) {
+    srow(
+      [
+        [0, 5, L.s_global, 'right'],
+        [5, 1, fmt(R._gl ?? 0)],
+        [6, NC - 6, ''],
+      ],
+      'global'
+    );
+  }
 
   if (R.park) {
     srow(

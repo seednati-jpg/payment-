@@ -196,10 +196,13 @@ export default function App() {
     let totAmt = 0;
     let totKm = 0;
     let totTrav = 0;
+    let totGlobal = 0;
 
     const calcRows = rows.map((r) => {
       let q = 0;
-      if (r.t === 'h') {
+      if (r.t === 'g') {
+        q = 0; // global row: fixed price, no hours
+      } else if (r.t === 'h') {
         q = num(r.h);
       } else if (r.from && r.to) {
         q = Math.max(0, (tm(r.to) - tm(r.from)) / 60);
@@ -207,11 +210,13 @@ export default function App() {
       const a = q * num(header.rate);
       const k = r.t === 'n' ? num(r.km) * 2 : 0;
       const t = k * num(header.kmRate);
+      const gl = r.t === 'g' ? num(r.g) : 0;
 
       totQty += q;
       totAmt += a;
       totKm += k;
       totTrav += t;
+      totGlobal += gl;
 
       return {
         ...r,
@@ -219,11 +224,12 @@ export default function App() {
         _a: a,
         _k: k,
         _t: t,
+        _gl: gl,
       };
     });
 
     const parkAmount = header.park ? num(header.parkAmt) : 0;
-    const grandTotal = totAmt + totTrav + parkAmount;
+    const grandTotal = totAmt + totTrav + parkAmount + totGlobal;
 
     return {
       rows: calcRows,
@@ -232,6 +238,7 @@ export default function App() {
       _k: totKm,
       _t: totTrav,
       _p: parkAmount,
+      _gl: totGlobal,
       _g: grandTotal,
     };
   }, [rows, header]);
@@ -282,12 +289,12 @@ export default function App() {
     );
   };
 
-  const addRow = () => {
+  const addRow = (type: InvoiceRow['t'] = 'n') => {
     setRows((prev) => [
       ...prev,
       {
         id: 'r_' + Date.now() + Math.random().toString(36).substring(2, 6),
-        t: 'n',
+        t: type,
         date: '',
         origin: settings.origin || '',
         place: '',
@@ -295,6 +302,7 @@ export default function App() {
         to: '',
         km: '',
         h: '',
+        g: '',
         auto: false,
       },
     ]);
@@ -353,10 +361,12 @@ export default function App() {
       setMsg({ text: 'חסר שם לקוח (״לכבוד״)', ok: false });
       return;
     }
-    const hasValidRow = calculatedData.rows.some((r) => (r._q ?? 0) > 0);
+    const hasValidRow = calculatedData.rows.some(
+      (r) => (r._q ?? 0) > 0 || (r._gl ?? 0) > 0
+    );
     if (!hasValidRow) {
       setMsg({
-        text: 'אין שורה עם שעות פעילות. בדוק שעות התחלה וסיום.',
+        text: 'אין שורה עם שעות פעילות או סכום גלובלי. בדוק שעות התחלה וסיום / סכום.',
         ok: false,
       });
       return;
@@ -392,6 +402,7 @@ export default function App() {
           _k: calculatedData._k,
           _t: calculatedData._t,
           _p: calculatedData._p,
+          _gl: calculatedData._gl,
           _g: calculatedData._g,
         },
         S: settings,
@@ -628,7 +639,7 @@ export default function App() {
         .join(' ');
 
     const pl = (r: InvoiceRow) =>
-      (r.origin ? r.origin + ' - ' : '') + (r.place || '');
+      r.t === 'g' ? r.place || '' : (r.origin ? r.origin + ' - ' : '') + (r.place || '');
 
     const tpl = (s: string) =>
       s.replace(/\{(\w+)\}/g, (_, k) => (mp as any)[k] || '');
@@ -641,7 +652,10 @@ export default function App() {
       to: `${L.to}: ${header.client || '—'}`,
       subject: L.subject,
       intro: tpl(L.intro),
-      rows: calculatedData.rows.filter((r) => (r._q ?? 0) > 0),
+      rows: calculatedData.rows.filter(
+        (r) => (r._q ?? 0) > 0 || (r._gl ?? 0) > 0
+      ),
+      onlyGlobal: calculatedData._gl > 0 && calculatedData._q === 0,
       cl,
       pl,
       NC,
@@ -877,12 +891,13 @@ export default function App() {
                     <select
                       value={row.t}
                       onChange={(e) =>
-                        handleRowChange(row.id, 't', e.target.value as 'n' | 'h')
+                        handleRowChange(row.id, 't', e.target.value as InvoiceRow['t'])
                       }
                       className="rounded-lg border border-[#ded8cb] dark:border-[#323946] bg-[#f4f1ea] dark:bg-[#14171d] text-xs font-semibold px-2 py-1"
                     >
                       <option value="n">רגילה (הדרכה + נסיעות)</option>
                       <option value="h">שעות בלבד (שעת בטלה / משרד)</option>
+                      <option value="g">גלובלי (מחיר סגור ליום)</option>
                     </select>
                   </div>
 
@@ -921,6 +936,7 @@ export default function App() {
                     )}
                   </div>
 
+                  {row.t !== 'g' && (
                   <div>
                     <label className="block text-xs font-bold text-neutral-500 dark:text-neutral-400 mb-1 flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-neutral-400" />
@@ -937,11 +953,12 @@ export default function App() {
                       className="w-full rounded-xl border border-[#ded8cb] dark:border-[#323946] bg-[#f4f1ea] dark:bg-[#14171d] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4e7a]"
                     />
                   </div>
+                  )}
 
-                  <div>
+                  <div className={row.t === 'g' ? 'sm:col-span-2' : ''}>
                     <label className="block text-xs font-bold text-neutral-500 dark:text-neutral-400 mb-1 flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-blue-500" />
-                      <span>יעד (מקום הפעילות)</span>
+                      <span>{row.t === 'g' ? 'מקום הפעילות' : 'יעד (מקום הפעילות)'}</span>
                     </label>
                     <input
                       type="text"
@@ -956,6 +973,7 @@ export default function App() {
                   </div>
 
                   {/* Google maps link */}
+                  {row.t !== 'g' && (
                   <div className="sm:col-span-2 flex items-center justify-between text-xs pt-0.5">
                     {destinationAddress ? (
                       <a
@@ -980,6 +998,7 @@ export default function App() {
                       </span>
                     )}
                   </div>
+                  )}
 
                   {row.t === 'n' ? (
                     <>
@@ -1031,7 +1050,7 @@ export default function App() {
                         </div>
                       </div>
                     </>
-                  ) : (
+                  ) : row.t === 'h' ? (
                     <div className="sm:col-span-2 pt-1 border-t border-[#ded8cb]/40 dark:border-[#323946]/40">
                       <label className="block text-xs font-bold text-neutral-500 dark:text-neutral-400 mb-1 flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" />
@@ -1049,11 +1068,43 @@ export default function App() {
                         className="w-full rounded-xl border border-[#ded8cb] dark:border-[#323946] bg-[#f4f1ea] dark:bg-[#14171d] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4e7a]"
                       />
                     </div>
+                  ) : (
+                    <div className="sm:col-span-2 pt-1 border-t border-[#ded8cb]/40 dark:border-[#323946]/40">
+                      <label className="block text-xs font-bold text-neutral-500 dark:text-neutral-400 mb-1 flex items-center gap-1">
+                        <span>💼 מחיר גלובלי (סכום סגור ב-₪)</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="any"
+                          value={row.g ?? ''}
+                          onChange={(e) =>
+                            handleRowChange(row.id, 'g', e.target.value)
+                          }
+                          placeholder="למשל: 800"
+                          className="w-full rounded-xl border border-[#ded8cb] dark:border-[#323946] bg-[#f4f1ea] dark:bg-[#14171d] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4e7a]"
+                        />
+                        <span className="absolute left-3 top-2.5 text-xs text-neutral-400">
+                          ₪
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
 
                 {/* Live row calculation badge */}
                 <div className="bg-[#f4f1ea] dark:bg-[#14171d] rounded-xl p-2.5 text-xs sm:text-sm font-semibold text-neutral-800 dark:text-neutral-200 flex flex-wrap items-center justify-between gap-1 border border-[#ded8cb]/50 dark:border-[#323946]/50">
+                  {row.t === 'g' ? (
+                    <div className="flex items-center gap-1.5">
+                      <span>💼 מחיר גלובלי</span>
+                      <span className="text-neutral-400">=</span>
+                      <span className="text-blue-700 dark:text-blue-300 font-bold">
+                        {fmt(row._gl ?? 0)} ₪
+                      </span>
+                    </div>
+                  ) : (
+                  <>
                   <div className="flex items-center gap-1.5">
                     <span>⏱ {fmt(row._q ?? 0)} שעות</span>
                     <span className="text-neutral-400">×</span>
@@ -1073,20 +1124,33 @@ export default function App() {
                       </span>
                     </div>
                   )}
+                  </>
+                  )}
                 </div>
               </div>
             );
           })}
 
-          {/* Add Row Button */}
+          {/* Add Row Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={addRow}
+            onClick={() => addRow('n')}
             className="w-full py-3 rounded-2xl border-2 border-dashed border-[#ded8cb] dark:border-[#323946] hover:border-[#1d4e7a] dark:hover:border-[#6aa7da] bg-[#fffdf9]/50 dark:bg-[#1d222b]/50 text-[#1d4e7a] dark:text-[#6aa7da] font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#fffdf9] dark:hover:bg-[#1d222b] transition active:scale-98 shadow-xs"
           >
             <Plus className="w-5 h-5" />
             <span>הוסף שורת הדרכה נוספת</span>
           </button>
+          
+          <button
+            type="button"
+            onClick={() => addRow('g')}
+            className="w-full py-3 rounded-2xl border-2 border-dashed border-[#ded8cb] dark:border-[#323946] hover:border-[#1d4e7a] dark:hover:border-[#6aa7da] bg-[#fffdf9]/50 dark:bg-[#1d222b]/50 text-[#1d4e7a] dark:text-[#6aa7da] font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#fffdf9] dark:hover:bg-[#1d222b] transition active:scale-98 shadow-xs"
+          >
+            <Plus className="w-5 h-5" />
+            <span>הוסף שורה גלובלית (מחיר סגור)</span>
+          </button>
+          </div>
         </section>
 
         {/* Optional Parking Card */}
@@ -1171,6 +1235,17 @@ export default function App() {
                 {fmt(calculatedData._t)} ₪
               </span>
             </div>
+
+            {calculatedData._gl > 0 && (
+              <div className="flex justify-between items-center py-1 border-b border-neutral-100 dark:border-neutral-800">
+                <span className="text-neutral-600 dark:text-neutral-400">
+                  {activeLabels.s_global}
+                </span>
+                <span className="font-semibold tabular-nums">
+                  {fmt(calculatedData._gl)} ₪
+                </span>
+              </div>
+            )}
 
             {header.park && (
               <div className="flex justify-between items-center py-1 border-b border-neutral-100 dark:border-neutral-800">
@@ -1258,16 +1333,18 @@ export default function App() {
                         <td className="p-1 border-r border-neutral-300">{draftHtml.pl(r)}</td>
                         <td className="p-1 border-r border-neutral-300">{r.t === 'n' ? r.from : '-'}</td>
                         <td className="p-1 border-r border-neutral-300">{r.t === 'n' ? r.to : '-'}</td>
-                        <td className="p-1 border-r border-neutral-300">{fmt(r._q ?? 0)}</td>
-                        <td className="p-1 border-r border-neutral-300">{fmt(r._a ?? 0)}</td>
+                        <td className="p-1 border-r border-neutral-300">{r.t === 'g' ? '-' : fmt(r._q ?? 0)}</td>
+                        <td className="p-1 border-r border-neutral-300">{r.t === 'g' ? fmt(r._gl ?? 0) : fmt(r._a ?? 0)}</td>
                         <td className="p-1 border-r border-neutral-300">{r.t === 'n' ? fmt(num(r.km)) : '-'}</td>
                         <td className="p-1 border-r border-neutral-300">{r.t === 'n' ? fmt(r._k ?? 0) : '-'}</td>
                         <td className="p-1 border-r border-neutral-300">{r.t === 'n' ? fmt(r._t ?? 0) : '-'}</td>
-                        <td className="p-1 border-r border-neutral-300">{fmt(header.rate)}</td>
+                        <td className="p-1 border-r border-neutral-300">{r.t === 'g' ? '-' : fmt(header.rate)}</td>
                         {draftHtml.kr && <td className="p-1">{r.t === 'n' ? fmt(header.kmRate) : '-'}</td>}
                       </tr>
                     ))}
                     {/* Summary lines */}
+                    {!draftHtml.onlyGlobal && (
+                    <>
                     <tr className={`border-b border-neutral-300 font-bold bg-neutral-50 ${draftHtml.cl('trav')}`}>
                       <td colSpan={7} className="p-1 text-right border-r border-neutral-300">
                         {draftHtml.L.s_trav}
@@ -1284,6 +1361,17 @@ export default function App() {
                       <td className="p-1 border-r border-neutral-300">{fmt(calculatedData._a)}</td>
                       <td colSpan={draftHtml.kr ? 5 : 4}></td>
                     </tr>
+                    </>
+                    )}
+                    {calculatedData._gl > 0 && (
+                      <tr className={`border-b border-neutral-300 font-bold bg-neutral-50 ${draftHtml.cl('global')}`}>
+                        <td colSpan={5} className="p-1 text-right border-r border-neutral-300">
+                          {draftHtml.L.s_global}
+                        </td>
+                        <td className="p-1 border-r border-neutral-300">{fmt(calculatedData._gl)}</td>
+                        <td colSpan={draftHtml.kr ? 5 : 4}></td>
+                      </tr>
+                    )}
                     {header.park && (
                       <tr className={`border-b border-neutral-300 font-bold bg-neutral-50 ${draftHtml.cl('park')}`}>
                         <td colSpan={5} className="p-1 text-right border-r border-neutral-300">

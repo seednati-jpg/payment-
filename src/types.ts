@@ -1,6 +1,6 @@
 export interface InvoiceRow {
   id: string;
-  t: 'n' | 'h'; // 'n' = regular with travel, 'h' = hours only
+  t: 'n' | 'h' | 'g'; // 'n' = regular with travel, 'h' = hours only, 'g' = global (fixed price)
   date: string;
   origin: string;
   place: string;
@@ -8,12 +8,14 @@ export interface InvoiceRow {
   to: string;
   km: string;
   h: string;
+  g?: string; // global fixed price (only for t === 'g')
   auto?: boolean;
   // Computed
   _q?: number; // quantity (hours)
   _a?: number; // amount (hours * rate)
   _k?: number; // total km (km * 2 roundtrip for 'n')
   _t?: number; // travel amount (_k * kmRate)
+  _gl?: number; // global fixed amount (t === 'g')
 }
 
 export interface InvoiceSettings {
@@ -49,4 +51,5 @@ export interface InvoiceHeader {
   _k?: number;
   _p?: number;
   _g?: number;
+  _gl?: number; // total of global rows
 }
