@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4e7a" />
+      <stop offset="100%" stop-color="#0f2b48" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#grad)" />
+  <!-- Document paper sheet -->
+  <g filter="url(#shadow)">
+    <rect x="110" y="80" width="292" height="352" rx="28" fill="#ffffff" />
+    <!-- Blue top accent header -->
+    <rect x="110" y="80" width="292" height="74" rx="28" fill="#2563eb" />
+    <rect x="110" y="126" width="292" height="28" fill="#2563eb" />
+    
+    <!-- Document lines -->
+    <rect x="150" y="190" width="212" height="16" rx="8" fill="#e2e8f0" />
+    <rect x="150" y="226" width="140" height="16" rx="8" fill="#e2e8f0" />
+    <rect x="150" y="262" width="212" height="16" rx="8" fill="#e2e8f0" />
+    
+    <!-- Shekel badge / checkmark -->
+    <circle cx="256" cy="350" r="44" fill="#10b981" />
+    <!-- Shekel ₪ symbol -->
+    <path d="M242 328 v44 h-12 v-32 h-10 v-12 h22 z M270 328 v44 h-12 v-44 h12 z M282 328 v32 h10 v12 h-22 v-44 h12 z" fill="#ffffff" />
+  </g>
+</svg>
