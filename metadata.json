@@ -1,0 +1,6 @@
+{
+  "name": "דרישת תשלום ודוחות נסיעות",
+  "description": "אפליקציה עצמאית להפקת דרישות תשלום, שעות הדרכה ודוחות נסיעות לקובצי PDF ולשיתוף מהיר בנייד ללא צורך ברישום.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
